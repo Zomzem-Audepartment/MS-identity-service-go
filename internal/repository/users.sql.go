@@ -80,9 +80,18 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deleteUser = `-- name: DeleteUser :exec
+UPDATE users SET deleted_at = NOW(), status = 'DELETED' WHERE id = $1
+`
+
+func (q *Queries) DeleteUser(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, deleteUser, id)
+	return err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, username, password_hash, external_login, employee_id, role_id, full_name, email, phone, avatar, status, last_login_ip, last_login_at, created_at, updated_at, deleted_at FROM users
-WHERE email = $1 LIMIT 1
+WHERE email = $1 AND deleted_at IS NULL LIMIT 1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (User, error) {
@@ -111,7 +120,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email pgtype.Text) (User, 
 
 const getUserById = `-- name: GetUserById :one
 SELECT id, username, password_hash, external_login, employee_id, role_id, full_name, email, phone, avatar, status, last_login_ip, last_login_at, created_at, updated_at, deleted_at FROM users
-WHERE id = $1 LIMIT 1
+WHERE id = $1 AND deleted_at IS NULL LIMIT 1
 `
 
 func (q *Queries) GetUserById(ctx context.Context, id int32) (User, error) {
@@ -140,11 +149,128 @@ func (q *Queries) GetUserById(ctx context.Context, id int32) (User, error) {
 
 const getUserByUsername = `-- name: GetUserByUsername :one
 SELECT id, username, password_hash, external_login, employee_id, role_id, full_name, email, phone, avatar, status, last_login_ip, last_login_at, created_at, updated_at, deleted_at FROM users
-WHERE username = $1 LIMIT 1
+WHERE username = $1 AND deleted_at IS NULL LIMIT 1
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByUsername, username)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.PasswordHash,
+		&i.ExternalLogin,
+		&i.EmployeeID,
+		&i.RoleID,
+		&i.FullName,
+		&i.Email,
+		&i.Phone,
+		&i.Avatar,
+		&i.Status,
+		&i.LastLoginIp,
+		&i.LastLoginAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT u.id, u.username, u.password_hash, u.external_login, u.employee_id, u.role_id, u.full_name, u.email, u.phone, u.avatar, u.status, u.last_login_ip, u.last_login_at, u.created_at, u.updated_at, u.deleted_at, r.name as role_name, r.code as role_code
+FROM users u
+LEFT JOIN roles r ON u.role_id = r.id
+WHERE u.deleted_at IS NULL
+ORDER BY u.created_at DESC
+`
+
+type ListUsersRow struct {
+	ID            int32              `json:"id"`
+	Username      string             `json:"username"`
+	PasswordHash  pgtype.Text        `json:"password_hash"`
+	ExternalLogin pgtype.Bool        `json:"external_login"`
+	EmployeeID    pgtype.Int4        `json:"employee_id"`
+	RoleID        pgtype.Int4        `json:"role_id"`
+	FullName      string             `json:"full_name"`
+	Email         pgtype.Text        `json:"email"`
+	Phone         pgtype.Text        `json:"phone"`
+	Avatar        pgtype.Text        `json:"avatar"`
+	Status        pgtype.Text        `json:"status"`
+	LastLoginIp   pgtype.Text        `json:"last_login_ip"`
+	LastLoginAt   pgtype.Timestamptz `json:"last_login_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	RoleName      pgtype.Text        `json:"role_name"`
+	RoleCode      pgtype.Text        `json:"role_code"`
+}
+
+func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
+	rows, err := q.db.Query(ctx, listUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUsersRow
+	for rows.Next() {
+		var i ListUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.PasswordHash,
+			&i.ExternalLogin,
+			&i.EmployeeID,
+			&i.RoleID,
+			&i.FullName,
+			&i.Email,
+			&i.Phone,
+			&i.Avatar,
+			&i.Status,
+			&i.LastLoginIp,
+			&i.LastLoginAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.RoleName,
+			&i.RoleCode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUser = `-- name: UpdateUser :one
+UPDATE users
+SET full_name = $2, email = $3, phone = $4, avatar = $5, role_id = $6, status = $7, updated_at = NOW()
+WHERE id = $1
+RETURNING id, username, password_hash, external_login, employee_id, role_id, full_name, email, phone, avatar, status, last_login_ip, last_login_at, created_at, updated_at, deleted_at
+`
+
+type UpdateUserParams struct {
+	ID       int32       `json:"id"`
+	FullName string      `json:"full_name"`
+	Email    pgtype.Text `json:"email"`
+	Phone    pgtype.Text `json:"phone"`
+	Avatar   pgtype.Text `json:"avatar"`
+	RoleID   pgtype.Int4 `json:"role_id"`
+	Status   pgtype.Text `json:"status"`
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUser,
+		arg.ID,
+		arg.FullName,
+		arg.Email,
+		arg.Phone,
+		arg.Avatar,
+		arg.RoleID,
+		arg.Status,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,

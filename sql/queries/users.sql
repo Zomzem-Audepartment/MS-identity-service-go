@@ -8,16 +8,17 @@ RETURNING *;
 
 -- name: GetUserByUsername :one
 SELECT * FROM users
-WHERE username = $1 LIMIT 1;
+WHERE username = $1 AND deleted_at IS NULL LIMIT 1;
 
 -- name: GetUserById :one
 SELECT * FROM users
-WHERE id = $1 LIMIT 1;
+WHERE id = $1 AND deleted_at IS NULL LIMIT 1;
 
 -- name: ListUsers :many
 SELECT u.*, r.name as role_name, r.code as role_code
 FROM users u
 LEFT JOIN roles r ON u.role_id = r.id
+WHERE u.deleted_at IS NULL
 ORDER BY u.created_at DESC;
 
 -- name: UpdateUser :one
@@ -41,7 +42,7 @@ WHERE id = $1;
 
 -- name: GetUserByEmail :one
 SELECT * FROM users
-WHERE email = $1 LIMIT 1;
+WHERE email = $1 AND deleted_at IS NULL LIMIT 1;
 
 -- name: UpdateUserExternalLogin :exec
 UPDATE users

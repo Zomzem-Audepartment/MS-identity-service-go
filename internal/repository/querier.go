@@ -12,8 +12,12 @@ import (
 
 type Querier interface {
 	AssignEmployeeId(ctx context.Context, arg AssignEmployeeIdParams) error
+	AssignPermissionToRole(ctx context.Context, arg AssignPermissionToRoleParams) (RolePermission, error)
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
+	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteRole(ctx context.Context, id int32) error
+	DeleteUser(ctx context.Context, id int32) error
 	GetRefreshToken(ctx context.Context, token string) (RefreshToken, error)
 	GetRoleByCode(ctx context.Context, code string) (Role, error)
 	GetRoleById(ctx context.Context, id int32) (Role, error)
@@ -22,8 +26,15 @@ type Querier interface {
 	GetUserById(ctx context.Context, id int32) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	GetUserPermissions(ctx context.Context, id int32) ([]GetUserPermissionsRow, error)
+	ListPermissions(ctx context.Context) ([]Permission, error)
+	ListRolePermissions(ctx context.Context, roleID int32) ([]ListRolePermissionsRow, error)
+	ListRoles(ctx context.Context) ([]Role, error)
+	ListUsers(ctx context.Context) ([]ListUsersRow, error)
+	RemovePermissionFromRole(ctx context.Context, arg RemovePermissionFromRoleParams) error
 	RevokeRefreshToken(ctx context.Context, token string) error
 	RevokeUserRefreshTokens(ctx context.Context, userID int32) error
+	UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, error)
+	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateUserExternalLogin(ctx context.Context, arg UpdateUserExternalLoginParams) error
 	UpdateUserLastLogin(ctx context.Context, arg UpdateUserLastLoginParams) error
 }
