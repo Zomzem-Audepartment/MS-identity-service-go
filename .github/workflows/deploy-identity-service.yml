@@ -1,0 +1,25 @@
+name: Manual Deploy Identity Service Go
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Docker Tag to deploy (e.g., v1.0.0 or latest)'
+        required: true
+        default: 'latest'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /home/work/data/projects/microservice
+            docker compose -f docker-compose.prod.yml pull identity-service
+            docker compose -f docker-compose.prod.yml up -d identity-service
+            docker image prune -f
